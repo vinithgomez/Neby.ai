@@ -17,8 +17,10 @@ export interface Message {
   content: string;
   timestamp: number;
   isLoading?: boolean;
+  isPainting?: boolean;
   images?: string[]; // base64 strings
   groundingSources?: GroundingChunk[];
+  audioBase64?: string; // Cached TTS audio
 }
 
 export interface ChatSession {
@@ -44,10 +46,55 @@ export const DEFAULT_CONFIG: ChatConfig = {
   systemInstruction: "You are a helpful, knowledgeable, and creative AI assistant. Answer concisely and accurately."
 };
 
-export const AVAILABLE_MODELS = [
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast, efficient, and balanced for daily use.' },
-  { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', description: 'Advanced reasoning, coding, and complex logic.' },
-  { id: 'gemini-flash-lite-latest', name: 'Gemini Lite', description: 'Ultra-fast and lightweight for simple tasks.' },
-  { id: 'gemini-2.5-flash-native-audio-preview-12-2025', name: 'Gemini Native Audio', description: 'Superior multimodal capabilities and audio processing.' },
-  { id: 'gemini-2.5-flash-preview-tts', name: 'Gemini TTS', description: 'Specialized for voice-to-text (Single-turn only).' },
+export interface ModelOption {
+  id: string;
+  name: string;
+  description: string;
+  supportsSearch: boolean;
+  supportsThinking: boolean;
+}
+
+export const AVAILABLE_MODELS: ModelOption[] = [
+  { 
+    id: 'gemini-3-flash-preview', 
+    name: 'Gemini 3 Flash', 
+    description: 'Fast, efficient, and balanced for daily use.',
+    supportsSearch: true,
+    supportsThinking: true
+  },
+  { 
+    id: 'gemini-3-pro-preview', 
+    name: 'Gemini 3 Pro', 
+    description: 'Advanced reasoning, coding, and complex logic.',
+    supportsSearch: true,
+    supportsThinking: true
+  },
+  { 
+    id: 'gemini-2.5-flash-image', 
+    name: 'Gemini Imagine', 
+    description: 'State-of-the-art image generation and editing.',
+    supportsSearch: false,
+    supportsThinking: false
+  },
+  { 
+    id: 'gemini-flash-lite-latest', 
+    name: 'Gemini Lite', 
+    description: 'Ultra-fast and lightweight for simple tasks.',
+    supportsSearch: true,
+    supportsThinking: false
+  },
+  { 
+    id: 'gemini-2.5-flash-native-audio-preview-12-2025', 
+    name: 'Gemini Native Audio', 
+    description: 'Superior multimodal capabilities and audio processing.',
+    supportsSearch: true,
+    supportsThinking: true
+  },
+  { 
+    id: 'gemini-2.5-flash-preview-tts', 
+    name: 'Gemini TTS', 
+    description: 'Specialized for voice-to-text (Single-turn only).',
+    supportsSearch: false,
+    supportsThinking: false
+  },
 ];

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Settings, BrainCircuit, Globe, MessageSquare, X, Trash2, Clock, Pencil, Brain, Sparkles } from 'lucide-react';
 import { ChatConfig, AVAILABLE_MODELS, ChatSession } from '../types';
 
-interface SidebarProps {
+interface SlidebarProps {
   isOpen: boolean;
   onClose: () => void;
   config: ChatConfig;
@@ -32,7 +32,7 @@ const NebyLogo = () => {
   );
 };
 
-export default function Sidebar({ 
+export default function Slidebar({ 
   isOpen, 
   onClose, 
   config, 
@@ -43,7 +43,7 @@ export default function Sidebar({
   onDeleteSession,
   onRenameSession,
   onNewChat 
-}: SidebarProps) {
+}: SlidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
@@ -55,7 +55,7 @@ export default function Sidebar({
 
   const saveEditing = () => {
     if (editingId) {
-        if (editValue.trim() && editValue.trim() !== sessions.find(s => s.id === editingId)?.title) {
+        if (editValue.trim()) {
             onRenameSession(editingId, editValue.trim());
         }
         setEditingId(null);
@@ -82,7 +82,7 @@ export default function Sidebar({
         />
       )}
 
-      {/* Sidebar Panel */}
+      {/* Slidebar Panel */}
       <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-black/40 backdrop-blur-xl border-r border-white/10 transform transition-transform duration-300 ease-in-out ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       } lg:w-80 flex flex-col shadow-2xl`}>
@@ -150,18 +150,14 @@ export default function Sidebar({
                               onBlur={saveEditing}
                               onKeyDown={handleKeyDown}
                               onClick={(e) => e.stopPropagation()}
-                              className="bg-black/40 text-white text-sm rounded-md px-2 py-1.5 w-full border border-indigo-500/50 outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all"
+                              className="bg-black/20 text-white text-sm rounded px-2 py-1 w-full border border-indigo-500/50 outline-none focus:ring-1 focus:ring-indigo-500/50"
                             />
                         </div>
                       ) : (
                         <>
-                          <div 
-                            className="flex items-center gap-3 overflow-hidden flex-1"
-                            onDoubleClick={(e) => startEditing(e, session)}
-                            title="Double-click to rename"
-                          >
+                          <div className="flex items-center gap-3 overflow-hidden">
                             <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${currentSessionId === session.id ? 'bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.5)]' : 'bg-zinc-700'}`} />
-                            <span className="text-sm truncate font-medium select-none">{session.title}</span>
+                            <span className="text-sm truncate font-medium">{session.title}</span>
                           </div>
                           <div className={`flex items-center opacity-0 group-hover:opacity-100 transition-opacity ${currentSessionId === session.id ? 'opacity-100' : ''}`}>
                             <button

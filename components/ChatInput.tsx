@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, X, Loader2, Mic, MicOff, AlertCircle, RefreshCw } from 'lucide-react';
+import { Send, Image as ImageIcon, X, Loader2, Mic, MicOff, AlertCircle, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
 
 interface ChatInputProps {
-  onSendMessage: (text: string, images: string[]) => void;
+  onSendMessage: (text: string, images: string[], isImageRequest?: boolean) => void;
   isLoading: boolean;
 }
 
@@ -39,11 +39,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
     };
   }, []);
 
-  const handleSend = () => {
+  const handleSend = (isImageRequest: boolean = false) => {
     const finalMsg = (text + ' ' + interimText).trim();
     if ((!finalMsg && images.length === 0) || isLoading) return;
     
-    onSendMessage(finalMsg, images);
+    onSendMessage(finalMsg, images, isImageRequest);
     setText('');
     setInterimText('');
     setImages([]);
@@ -209,14 +209,14 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
     : text;
 
   const placeholderText = isLoading 
-    ? "Thinking..." 
+    ? "Processing..." 
     : isInitializing
       ? "Initializing..."
       : speechError 
         ? speechError 
         : isListening 
           ? "Listening..." 
-          : "Message Neby...";
+          : "Ask Neby or describe an image...";
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
@@ -247,7 +247,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
           : 'border-white/10 focus-within:ring-2 focus-within:ring-indigo-500/40 focus-within:border-indigo-500/40'
       }`}>
         
-        <div className="flex items-end">
+        <div className="flex items-end px-1">
           {/* Attachment Button */}
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -314,18 +314,35 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
             />
           </div>
 
-          {/* Send Button */}
-          <button
-            onClick={handleSend}
-            disabled={(!text.trim() && !interimText.trim() && images.length === 0) || isLoading}
-            className={`p-2 m-1.5 rounded-xl transition-all mb-[5px] ${
-              (!text.trim() && !interimText.trim() && images.length === 0) || isLoading
-                ? 'bg-white/5 text-zinc-600 cursor-not-allowed'
-                : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-900/30'
-            }`}
-          >
-            {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-          </button>
+          <div className="flex items-center gap-1 mb-[5px] mr-1.5">
+            {/* Imagine Button */}
+            <button
+              onClick={() => handleSend(true)}
+              disabled={(!text.trim() && !interimText.trim()) || isLoading}
+              className={`p-2 rounded-xl transition-all ${
+                (!text.trim() && !interimText.trim()) || isLoading
+                  ? 'text-zinc-600 cursor-not-allowed'
+                  : 'bg-purple-600/20 text-purple-400 hover:bg-purple-600 hover:text-white shadow-lg shadow-purple-900/20'
+              }`}
+              title="Generate Image"
+            >
+              <Wand2 size={18} />
+            </button>
+
+            {/* Send Button */}
+            <button
+              onClick={() => handleSend(false)}
+              disabled={(!text.trim() && !interimText.trim() && images.length === 0) || isLoading}
+              className={`p-2 rounded-xl transition-all ${
+                (!text.trim() && !interimText.trim() && images.length === 0) || isLoading
+                  ? 'bg-white/5 text-zinc-600 cursor-not-allowed'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-900/30'
+              }`}
+              title="Send Message"
+            >
+              {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+            </button>
+          </div>
         </div>
 
         {/* Listening Indicator Bar */}

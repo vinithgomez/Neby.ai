@@ -64,6 +64,15 @@
       .markdown-content pre code { background-color: transparent; padding: 0; }
       .markdown-content blockquote { border-left: 4px solid #4f46e5; padding-left: 1em; color: #a5b4fc; margin-bottom: 1em; }
       .markdown-content a { color: #818cf8; text-decoration: underline; }
+
+      /* Core Animations */
+      @keyframes thinking-shimmer {
+        0% { transform: translateX(-150%); }
+        100% { transform: translateX(150%); }
+      }
+      .animate-thinking-shimmer {
+        animation: thinking-shimmer 2.5s infinite ease-in-out;
+      }
     </style>
   <script type="importmap">
 {
