@@ -1,0 +1,7 @@
+{
+  "name": "Neby",
+  "description": "A next-generation AI chat interface featuring Gemini 3 models, multimodal support, thinking reasoning, and Google Search grounding.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
