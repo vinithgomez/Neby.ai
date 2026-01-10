@@ -83,7 +83,7 @@ export default function Sidebar({
             <NebyLogo />
             <h2 className="text-lg font-bold text-white tracking-tight leading-none">Neby</h2>
           </div>
-          <button onClick={onClose} className="lg:hidden p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-all"><X size={18} /></button>
+          <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-all"><X size={18} /></button>
         </div>
 
         {/* Scrollable Content */}
@@ -112,12 +112,11 @@ export default function Sidebar({
                                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${currentSessionId === session.id ? 'bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.8)]' : 'bg-zinc-700 group-hover:bg-zinc-600'}`} />
                                 <span className="text-sm truncate font-medium">{session.title}</span>
                              </div>
-                             {currentSessionId === session.id && (
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 bg-[#09090b] shadow-xl rounded-md border border-white/10">
-                                   <button onClick={(e) => startEditing(e, session)} className="p-1.5 hover:text-indigo-300 transition-colors"><Pencil size={11} /></button>
-                                   <button onClick={(e) => onDeleteSession(session.id, e)} className="p-1.5 hover:text-red-400 transition-colors"><Trash2 size={11} /></button>
-                                </div>
-                             )}
+                             
+                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 bg-[#09090b] shadow-xl rounded-md border border-white/10 z-10">
+                                <button onClick={(e) => startEditing(e, session)} className="p-1.5 hover:text-indigo-300 transition-colors"><Pencil size={11} /></button>
+                                <button onClick={(e) => onDeleteSession(session.id, e)} className="p-1.5 hover:text-red-400 transition-colors"><Trash2 size={11} /></button>
+                             </div>
                           </>
                         )}
                       </div>

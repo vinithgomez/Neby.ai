@@ -116,7 +116,7 @@ const LiveSessionOverlay = ({ onClose }: { onClose: () => void }) => {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-2xl flex flex-col items-center justify-center animate-in fade-in duration-300">
+    <div className="absolute inset-0 z-40 bg-black/90 backdrop-blur-2xl flex flex-col items-center justify-center animate-in fade-in duration-300">
        <button onClick={onClose} className="absolute top-8 right-8 p-4 bg-white/5 rounded-full hover:bg-white/10 transition-all border border-white/5"><X size={32} /></button>
        <div className="text-center space-y-12">
          <div className={`relative w-64 h-64 flex items-center justify-center transition-all duration-500 ${isSpeaking ? 'scale-110' : ''}`}>
@@ -326,8 +326,6 @@ const App: React.FC = () => {
           <div className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200"><AuthScreen onLogin={handleLogin} onGuest={() => setShowAuthModal(false)} onClose={() => setShowAuthModal(false)} /></div>
         </div>
       )}
-
-      {isLiveMode && <LiveSessionOverlay onClose={() => setIsLiveMode(false)} />}
       
       <Sidebar 
         isOpen={slidebarOpen} 
@@ -346,6 +344,8 @@ const App: React.FC = () => {
       />
       
       <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out relative ${slidebarOpen ? 'lg:ml-80' : 'lg:ml-0'}`}>
+        {isLiveMode && <LiveSessionOverlay onClose={() => setIsLiveMode(false)} />}
+
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center p-4 border-b border-white/5 bg-[#09090b]/80 backdrop-blur-md z-30 sticky top-0">
           <button onClick={() => setSlidebarOpen(!slidebarOpen)} className="text-zinc-400 p-2 hover:bg-white/5 rounded-lg transition-colors"><Menu size={20} /></button>
@@ -359,7 +359,7 @@ const App: React.FC = () => {
              </button>
         )}
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar pb-32">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in zoom-in-95 duration-500">
               <div className="w-40 h-40">
@@ -396,6 +396,7 @@ const App: React.FC = () => {
                   onEditSave={handleEditMessage}
                 />
               ))}
+              <div className="h-32 md:h-48 shrink-0" /> {/* Spacer */}
               <div ref={messagesEndRef} />
             </div>
           )}

@@ -53,7 +53,8 @@
       }
       
       /* Markdown Styles */
-      .markdown-content p { margin-bottom: 1.25em; line-height: 1.7; }
+      .markdown-content { width: 100%; }
+      .markdown-content p { margin-bottom: 1.25em; line-height: 1.7; word-wrap: break-word; }
       .markdown-content h1, .markdown-content h2, .markdown-content h3 { 
         font-weight: 600; color: #fff; margin-top: 1.5em; margin-bottom: 0.75em; letter-spacing: -0.02em;
       }
@@ -63,22 +64,34 @@
       .markdown-content ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1.25em; color: #d4d4d8; }
       .markdown-content ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1.25em; color: #d4d4d8; }
       .markdown-content li { margin-bottom: 0.5em; }
+      
       .markdown-content pre { 
         background-color: rgba(0, 0, 0, 0.3); 
         padding: 1.25em; 
         border-radius: 0.75em; 
         overflow-x: auto; 
         margin-bottom: 1.25em; 
-        border: 1px solid rgba(255, 255, 255, 0.08); 
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        max-width: 100%;
+        white-space: pre; 
       }
+      
       .markdown-content code { 
         font-family: 'JetBrains Mono', monospace; 
         font-size: 0.85em; 
         background: rgba(255,255,255,0.1);
         padding: 0.2em 0.4em;
         border-radius: 0.3em;
+        word-break: break-all; /* Fallback for inline code */
       }
-      .markdown-content pre code { background: transparent; padding: 0; }
+      
+      .markdown-content pre code { 
+        background: transparent; 
+        padding: 0; 
+        word-break: normal; /* Don't break words in code blocks, scroll instead */
+        white-space: pre; 
+      }
+      
       .markdown-content blockquote { 
         border-left: 3px solid #6366f1; 
         padding-left: 1.25em; 
@@ -86,8 +99,25 @@
         margin-bottom: 1.25em; 
         font-style: italic;
       }
-      .markdown-content a { color: #818cf8; text-decoration: none; border-bottom: 1px dashed #818cf8; transition: all 0.2s; }
+      
+      .markdown-content a { color: #818cf8; text-decoration: none; border-bottom: 1px dashed #818cf8; transition: all 0.2s; word-break: break-all; }
       .markdown-content a:hover { color: #a5b4fc; border-bottom-style: solid; }
+
+      .markdown-content table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        border-collapse: collapse;
+        margin-bottom: 1.25em;
+      }
+      .markdown-content th, .markdown-content td {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 0.75em;
+        text-align: left;
+      }
+      .markdown-content th {
+        background-color: rgba(255, 255, 255, 0.05);
+      }
 
       /* Animations */
       @keyframes message-enter {

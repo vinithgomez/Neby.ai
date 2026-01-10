@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Message, Role } from '../types';
-import { User, Globe, Copy, Check, Sparkles, Volume2, Square, Loader2, Pencil, X, Send, Download, Palette } from 'lucide-react';
+import { User, Globe, Copy, Check, Sparkles, Volume2, Square, Loader2, Pencil, Download, Palette } from 'lucide-react';
 import { geminiService } from '../services/geminiService';
 
 interface ChatMessageProps {
@@ -141,7 +141,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onUpdateMessage, onE
           </div>
         </div>
 
-        {/* Content Bubble */}
+        {/* Content Bubble Container */}
         <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} min-w-0 flex-1`}>
             
             {/* Name & Time */}
@@ -150,44 +150,49 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onUpdateMessage, onE
                 <span className="text-[10px] text-zinc-600">{new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
 
-            <div className={`relative px-6 py-5 shadow-sm transition-all duration-300 ${
-                isUser 
-                ? 'bg-[#27272a] text-zinc-100 rounded-3xl rounded-tr-lg border border-white/5' 
-                : 'bg-black/20 backdrop-blur-md text-zinc-200 rounded-3xl rounded-tl-lg border border-white/5'
-            } ${isEditing ? 'ring-1 ring-indigo-500/50' : ''}`}>
+            {/* Bubble Anchor (For Actions Positioning) */}
+            <div className="relative max-w-full group/bubble">
                 
-                {/* Images */}
-                {message.images && message.images.length > 0 && (
-                <div className="flex flex-wrap gap-3 mb-4">
-                    {message.images.map((img, idx) => (
-                    <div key={idx} className="relative group/img overflow-hidden rounded-xl border border-white/10 bg-black/50">
-                        <img src={img} alt={`gen-${idx}`} className="max-w-full md:max-w-sm max-h-80 object-contain" />
-                        <button onClick={() => handleDownload(img, idx)} className="absolute top-2 right-2 p-2 bg-black/60 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-all backdrop-blur-md hover:bg-black/80"><Download size={14} /></button>
+                {/* THE ACTUAL BUBBLE */}
+                <div className={`px-6 py-5 shadow-sm transition-all duration-300 overflow-hidden ${
+                    isUser 
+                    ? 'bg-[#27272a] text-zinc-100 rounded-3xl rounded-tr-lg border border-white/5' 
+                    : 'bg-black/20 backdrop-blur-md text-zinc-200 rounded-3xl rounded-tl-lg border border-white/5'
+                } ${isEditing ? 'ring-1 ring-indigo-500/50' : ''}`}>
+                    
+                    {/* Images */}
+                    {message.images && message.images.length > 0 && (
+                    <div className="flex flex-wrap gap-3 mb-4">
+                        {message.images.map((img, idx) => (
+                        <div key={idx} className="relative group/img overflow-hidden rounded-xl border border-white/10 bg-black/50">
+                            <img src={img} alt={`gen-${idx}`} className="max-w-full md:max-w-sm max-h-80 object-contain" />
+                            <button onClick={() => handleDownload(img, idx)} className="absolute top-2 right-2 p-2 bg-black/60 text-white rounded-lg opacity-0 group-hover/img:opacity-100 transition-all backdrop-blur-md hover:bg-black/80"><Download size={14} /></button>
+                        </div>
+                        ))}
                     </div>
-                    ))}
+                    )}
+
+                    {/* Content / Edit Mode */}
+                    {isEditing ? (
+                        <div className="flex flex-col gap-3 min-w-[280px]">
+                            <textarea ref={editInputRef} value={editContent} onChange={(e) => setEditContent(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500/50 resize-none min-h-[100px]" onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEditSubmit(); } else if (e.key === 'Escape') { setIsEditing(false); setEditContent(message.content); } }} />
+                            <div className="flex justify-end gap-2">
+                                <button onClick={() => { setIsEditing(false); setEditContent(message.content); }} className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
+                                <button onClick={handleEditSubmit} className="px-4 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all">Save</button>
+                            </div>
+                        </div>
+                    ) : (
+                        message.isLoading || message.isPainting ? <ThinkingIndicator isPainting={message.isPainting} /> : (
+                            <div className="markdown-content text-[15px] leading-7 font-light tracking-wide text-zinc-200 selection:bg-indigo-500/30 break-words">
+                                <ReactMarkdown>{message.content}</ReactMarkdown>
+                            </div>
+                        )
+                    )}
                 </div>
-                )}
 
-                {/* Content / Edit Mode */}
-                {isEditing ? (
-                    <div className="flex flex-col gap-3 min-w-[280px]">
-                        <textarea ref={editInputRef} value={editContent} onChange={(e) => setEditContent(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded-lg p-3 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500/50 resize-none min-h-[100px]" onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEditSubmit(); } else if (e.key === 'Escape') { setIsEditing(false); setEditContent(message.content); } }} />
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => { setIsEditing(false); setEditContent(message.content); }} className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white transition-colors">Cancel</button>
-                            <button onClick={handleEditSubmit} className="px-4 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all">Save</button>
-                        </div>
-                    </div>
-                ) : (
-                    message.isLoading || message.isPainting ? <ThinkingIndicator isPainting={message.isPainting} /> : (
-                        <div className="markdown-content text-[15px] leading-7 font-light tracking-wide text-zinc-200 selection:bg-indigo-500/30">
-                            <ReactMarkdown>{message.content}</ReactMarkdown>
-                        </div>
-                    )
-                )}
-
-                {/* Message Actions */}
+                {/* Message Actions (Outside overflow-hidden) */}
                 {!message.isLoading && !message.isPainting && !isEditing && (
-                    <div className={`absolute -bottom-3 ${isUser ? 'left-4' : 'right-4'} flex items-center gap-0.5 bg-[#18181b] border border-white/10 rounded-full px-2 py-0.5 shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 scale-95 group-hover:scale-100`}>
+                    <div className={`absolute -bottom-3 ${isUser ? 'left-4' : 'right-4'} flex items-center gap-0.5 bg-[#18181b] border border-white/10 rounded-full px-2 py-0.5 shadow-lg opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 scale-95 group-hover/bubble:scale-100 z-10`}>
                         {isUser && <button onClick={() => setIsEditing(true)} className="p-1.5 text-zinc-400 hover:text-white transition-colors"><Pencil size={12} /></button>}
                         {!isUser && message.content && (
                             <button onClick={handleSpeak} className={`p-1.5 transition-colors ${isSpeaking ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'}`}>
@@ -197,6 +202,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onUpdateMessage, onE
                         <button onClick={handleCopy} className="p-1.5 text-zinc-400 hover:text-white transition-colors">{copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}</button>
                     </div>
                 )}
+
             </div>
             
             {/* Grounding Sources */}
