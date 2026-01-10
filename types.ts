@@ -9,6 +9,11 @@ export interface GroundingChunk {
     uri: string;
     title: string;
   };
+  maps?: {
+    uri: string;
+    title: string;
+    placeAnswerSources?: any[];
+  };
 }
 
 export interface Message {
@@ -18,7 +23,9 @@ export interface Message {
   timestamp: number;
   isLoading?: boolean;
   isPainting?: boolean;
+  isDirecting?: boolean;
   images?: string[]; // base64 strings
+  videoUri?: string;
   groundingSources?: GroundingChunk[];
   audioBase64?: string; // Cached TTS audio
 }
@@ -35,7 +42,18 @@ export interface ChatConfig {
   temperature: number;
   useSearch: boolean;
   useThinking: boolean;
+  useMaps: boolean;
   systemInstruction: string;
+  aspectRatio: string;
+  imageSize: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string;
+  isAnonymous?: boolean;
 }
 
 export const DEFAULT_CONFIG: ChatConfig = {
@@ -43,7 +61,10 @@ export const DEFAULT_CONFIG: ChatConfig = {
   temperature: 0.7,
   useSearch: false,
   useThinking: false,
-  systemInstruction: "You are a helpful, knowledgeable, and creative AI assistant. Answer concisely and accurately."
+  useMaps: false,
+  systemInstruction: "You are a helpful, knowledgeable, and creative AI assistant. Answer concisely and accurately.",
+  aspectRatio: "1:1",
+  imageSize: "1K"
 };
 
 export interface ModelOption {
@@ -52,49 +73,52 @@ export interface ModelOption {
   description: string;
   supportsSearch: boolean;
   supportsThinking: boolean;
+  supportsMaps: boolean;
+  supportsImageGen: boolean;
+  supportsVideoGen: boolean;
+  isPremium?: boolean;
 }
 
 export const AVAILABLE_MODELS: ModelOption[] = [
   { 
     id: 'gemini-3-flash-preview', 
     name: 'Gemini 3 Flash', 
-    description: 'Fast, efficient, and balanced for daily use.',
+    description: 'Fast, balanced (Search, Transcribe).',
     supportsSearch: true,
-    supportsThinking: true
+    supportsThinking: true,
+    supportsMaps: false,
+    supportsImageGen: false,
+    supportsVideoGen: false
   },
   { 
     id: 'gemini-3-pro-preview', 
     name: 'Gemini 3 Pro', 
-    description: 'Advanced reasoning, coding, and complex logic.',
+    description: 'Deep reasoning, Image/Video Analysis.',
     supportsSearch: true,
-    supportsThinking: true
+    supportsThinking: true,
+    supportsMaps: false,
+    supportsImageGen: false,
+    supportsVideoGen: false
   },
   { 
-    id: 'gemini-2.5-flash-image', 
-    name: 'Gemini Imagine', 
-    description: 'State-of-the-art image generation and editing.',
+    id: 'gemini-3-pro-image-preview', 
+    name: 'Gemini 3 Pro Image', 
+    description: 'High-fidelity image generation (1K-4K).',
     supportsSearch: false,
-    supportsThinking: false
+    supportsThinking: false,
+    supportsMaps: false,
+    supportsImageGen: true,
+    supportsVideoGen: false
   },
   { 
-    id: 'gemini-flash-lite-latest', 
-    name: 'Gemini Lite', 
-    description: 'Ultra-fast and lightweight for simple tasks.',
-    supportsSearch: true,
-    supportsThinking: false
-  },
-  { 
-    id: 'gemini-2.5-flash-native-audio-preview-12-2025', 
-    name: 'Gemini Native Audio', 
-    description: 'Superior multimodal capabilities and audio processing.',
-    supportsSearch: true,
-    supportsThinking: true
-  },
-  { 
-    id: 'gemini-2.5-flash-preview-tts', 
-    name: 'Gemini TTS', 
-    description: 'Specialized for voice-to-text (Single-turn only).',
+    id: 'veo-3.1-fast-generate-preview', 
+    name: 'Veo 3.1 Video', 
+    description: 'Video generation & animation (Premium).',
     supportsSearch: false,
-    supportsThinking: false
-  },
+    supportsThinking: false,
+    supportsMaps: false,
+    supportsImageGen: false,
+    supportsVideoGen: true,
+    isPremium: true
+  }
 ];

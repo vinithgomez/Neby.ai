@@ -2,10 +2,9 @@ import { GoogleGenAI, Part, Modality } from "@google/genai";
 import { ChatConfig, Message, Role } from '../types';
 
 export class GeminiService {
-  private ai: GoogleGenAI;
+  public ai: GoogleGenAI; // Made public for Live API access in App
 
   constructor() {
-    // Ensure API Key is available
     if (!process.env.API_KEY) {
       console.error("API_KEY is missing from environment variables.");
     }
@@ -13,12 +12,35 @@ export class GeminiService {
   }
 
   /**
+   * Transcribes audio using Gemini 3 Flash.
+   */
+  async transcribeAudio(audioBase64: string): Promise<string> {
+    try {
+      // Re-instantiate to get latest key
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [
+            { inlineData: { mimeType: 'audio/wav', data: audioBase64 } },
+            { text: "Transcribe this audio exactly as spoken." }
+          ]
+        }
+      });
+      return response.text || "";
+    } catch (error) {
+      console.error("Transcription Error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Generates audio from text using the specialized TTS model.
-   * Returns a base64 string of raw PCM data (24kHz, 1 channel).
    */
   async generateSpeech(text: string): Promise<string> {
     try {
-      const response = await this.ai.models.generateContent({
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: `Read this message naturally: ${text}` }] }],
         config: {
@@ -43,27 +65,51 @@ export class GeminiService {
   }
 
   /**
-   * Generates images based on a text prompt using the image model.
-   * Returns an array of base64 strings.
+   * Generates or Edits images.
    */
-  async generateImage(prompt: string): Promise<string[]> {
+  async generateImage(prompt: string, config: ChatConfig, inputImages?: string[]): Promise<string[]> {
     try {
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [{ text: prompt }],
-        },
+      // Re-instantiate AI to ensure it picks up the latest API Key if changed via UI
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const model = config.model; 
+      
+      const parts: Part[] = [];
+      
+      // If input images are present, we are editing (or informing generation)
+      if (inputImages && inputImages.length > 0) {
+        for (const img of inputImages) {
+          parts.push({
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: img.split(',')[1]
+            }
+          });
+        }
+      }
+      parts.push({ text: prompt });
+
+      // Config depends on model
+      let imageConfig: any = {
+        aspectRatio: config.aspectRatio || "1:1"
+      };
+      
+      // Image Size only for Pro Image
+      if (model.includes('pro-image')) {
+        // "1K", "2K", "4K"
+      }
+
+      const response = await ai.models.generateContent({
+        model: model,
+        contents: { parts },
         config: {
-          imageConfig: {
-            aspectRatio: "1:1"
-          }
+          imageConfig: model.includes('pro-image') ? { ...imageConfig, imageSize: config.imageSize } : imageConfig
         }
       });
 
       const images: string[] = [];
-      const parts = response.candidates?.[0]?.content?.parts || [];
+      const resParts = response.candidates?.[0]?.content?.parts || [];
       
-      for (const part of parts) {
+      for (const part of resParts) {
         if (part.inlineData) {
           images.push(`data:${part.inlineData.mimeType};base64,${part.inlineData.data}`);
         }
@@ -80,14 +126,70 @@ export class GeminiService {
     }
   }
 
+  /**
+   * Generates Video or Animates Image.
+   */
+  async generateVideo(prompt: string, config: ChatConfig, inputImage?: string, onStatusUpdate?: (status: string) => void): Promise<string> {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+
+      const requestConfig: any = {
+        numberOfVideos: 1,
+        resolution: '1080p',
+        aspectRatio: ['16:9', '9:16'].includes(config.aspectRatio || '') ? config.aspectRatio : '16:9'
+      };
+
+      // Construct payload
+      let operation;
+      if (inputImage) {
+        // Image-to-Video
+        operation = await ai.models.generateVideos({
+          model: 'veo-3.1-fast-generate-preview',
+          prompt: prompt || "Animate this image",
+          image: {
+            imageBytes: inputImage.split(',')[1],
+            mimeType: 'image/jpeg',
+          },
+          config: requestConfig
+        });
+      } else {
+        // Text-to-Video
+        operation = await ai.models.generateVideos({
+          model: 'veo-3.1-fast-generate-preview',
+          prompt: prompt,
+          config: requestConfig
+        });
+      }
+
+      while (!operation.done) {
+        if (onStatusUpdate) onStatusUpdate("Synthesizing video frames...");
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        operation = await ai.operations.getVideosOperation({ operation: operation });
+      }
+
+      const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
+      if (!videoUri) {
+        throw new Error("No video URI returned from Gemini Veo");
+      }
+
+      return `${videoUri}&key=${process.env.API_KEY}`;
+    } catch (error) {
+      console.error("Gemini Video Generation Error:", error);
+      throw error;
+    }
+  }
+
   async *streamChat(
     history: Message[], 
     newMessage: string, 
     images: string[], 
-    config: ChatConfig
+    config: ChatConfig,
+    videoData?: string // base64 video file if any
   ): AsyncGenerator<string | { groundingChunks: any[] }, void, unknown> {
     
-    // Transform internal history to API format
+    // Re-instantiate AI for streaming to catch latest key
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+
     const chatHistory = history
       .filter(msg => !msg.isLoading && msg.role !== Role.SYSTEM) 
       .map(msg => ({
@@ -100,37 +202,53 @@ export class GeminiService {
           : [{ text: msg.content }]
       }));
 
-    // Construct the current message parts
     const currentParts: Part[] = [];
+    
+    // Images
     if (images.length > 0) {
       images.forEach(img => {
-        const base64Data = img.split(',')[1];
         currentParts.push({
           inlineData: {
             mimeType: 'image/jpeg',
-            data: base64Data
+            data: img.split(',')[1]
           }
         });
       });
     }
-    currentParts.push({ text: newMessage });
 
-    // Prepare Tools
-    const tools: any[] = [];
-    if (config.useSearch) {
-      tools.push({ googleSearch: {} });
+    // Video Attachment (for Understanding)
+    if (videoData) {
+      // Assuming small video file converted to base64
+      // inlineData limit is ~20MB. 
+      // MimeType usually video/mp4
+      currentParts.push({
+        inlineData: {
+          mimeType: 'video/mp4',
+          data: videoData.split(',')[1]
+        }
+      });
     }
 
-    // Prepare Thinking Config
-    const isThinkingSupported = config.model.includes('gemini-3') || config.model.includes('gemini-2.5');
-    const thinkingConfig = (config.useThinking && isThinkingSupported)
-      ? { thinkingBudget: 4096 } 
+    currentParts.push({ text: newMessage });
+
+    const tools: any[] = [];
+    // Only Gemini 3 supports Google Search in this codebase context
+    if (config.useSearch && config.model.includes('gemini-3')) {
+      tools.push({ googleSearch: {} });
+    }
+    // Only Gemini 2.5 supports Google Maps (if we were using it)
+    if (config.useMaps && config.model.includes('gemini-2.5-flash')) {
+      tools.push({ googleMaps: {} });
+    }
+
+    // Thinking Config - Valid for Gemini 3 and 2.5
+    // Flash limit ~24k, Pro limit ~32k
+    const thinkingConfig = (config.useThinking && config.model.includes('gemini-3'))
+      ? { thinkingBudget: config.model.includes('pro') ? 32000 : 16000 } 
       : undefined;
 
-    // Detect if model supports multi-turn history.
     const isSingleTurnOnly = config.model.includes('tts') || config.model.includes('image');
     
-    // Construct the contents array.
     const contents = isSingleTurnOnly 
       ? [{ role: 'user', parts: currentParts }]
       : [
@@ -139,7 +257,7 @@ export class GeminiService {
         ];
 
     try {
-      const result = await this.ai.models.generateContentStream({
+      const result = await ai.models.generateContentStream({
         model: config.model,
         contents: contents,
         config: {
@@ -152,14 +270,10 @@ export class GeminiService {
 
       for await (const chunk of result) {
         const text = chunk.text;
-        if (text) {
-          yield text;
-        }
+        if (text) yield text;
         
         const groundingChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
-        if (groundingChunks) {
-           yield { groundingChunks };
-        }
+        if (groundingChunks) yield { groundingChunks };
 
         const candidate = chunk.candidates?.[0];
         if (candidate?.finishReason === 'SAFETY') {
@@ -169,25 +283,17 @@ export class GeminiService {
     } catch (error: any) {
       console.error("Gemini API Error Detail:", error);
       
-      const errorMessage = error.message || "";
-      const statusCode = error.status || (error.response?.status);
+      const errorMessage = error.message || error.error?.message || JSON.stringify(error);
+      const statusCode = error.status || (error.response?.status) || error.code;
 
-      if (statusCode === 429 || errorMessage.toLowerCase().includes('rate limit')) {
-        yield "🚀 **Rate Limit Reached**: Neby needs a short break! Please wait a minute.";
+      if (errorMessage.includes("Requested entity was not found") || statusCode === 404) {
+        throw error;
+      }
+      if (statusCode === 429) {
+        yield "🚀 **Rate Limit Reached**: Please wait.";
         return;
       }
-
-      if (statusCode === 401 || statusCode === 403) {
-        yield "🔐 **Authentication Error**: Check your API key.";
-        return;
-      }
-
-      if (statusCode === 400) {
-        yield "❌ **Invalid Request**: Check model compatibility with features like Search or Thinking.";
-        return;
-      }
-
-      yield "☄️ **Unexpected Error**: Neural mesh disruption. Please try again.";
+      yield "☄️ **Error**: " + (errorMessage.slice(0, 100) + "...");
     }
   }
 }

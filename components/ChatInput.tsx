@@ -1,368 +1,234 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, X, Loader2, Mic, MicOff, AlertCircle, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
+import { Send, X, Loader2, Mic, MicOff, Sparkles, Video, Paperclip } from 'lucide-react';
+import { geminiService } from '../services/geminiService';
+import { ModelOption } from '../types';
 
 interface ChatInputProps {
-  onSendMessage: (text: string, images: string[], isImageRequest?: boolean) => void;
+  onSendMessage: (text: string, images: string[], type: 'text' | 'image' | 'video', videoData?: string) => void;
   isLoading: boolean;
+  onLiveStart: () => void;
+  selectedModel: ModelOption;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveStart, selectedModel }) => {
   const [text, setText] = useState('');
-  const [interimText, setInterimText] = useState('');
   const [images, setImages] = useState<string[]>([]);
-  const [isListening, setIsListening] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
-  const [speechError, setSpeechError] = useState<string | null>(null);
+  const [video, setVideo] = useState<string | null>(null);
   
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + 'px';
     }
-  }, [text, interimText]);
+  }, [text]);
 
-  // Cleanup recognition on unmount
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.onend = null;
-          recognitionRef.current.onerror = null;
-          recognitionRef.current.abort();
-        } catch (e) {}
-      }
-    };
-  }, []);
-
-  const handleSend = (isImageRequest: boolean = false) => {
-    const finalMsg = (text + ' ' + interimText).trim();
-    if ((!finalMsg && images.length === 0) || isLoading) return;
+  const handleSend = (type: 'text' | 'image' | 'video' = 'text') => {
+    if ((!text.trim() && images.length === 0 && !video) || isLoading) return;
     
-    onSendMessage(finalMsg, images, isImageRequest);
+    // Determine type: if video attached -> 'text' (video understanding) or 'video' (generation)?
+    // Usually, send 'text' with attachments for understanding. 
+    // Send 'video' type only if we want Veo generation.
+    // Logic handled in App.tsx based on type param.
+    
+    onSendMessage(text.trim(), images, type, video || undefined);
     setText('');
-    setInterimText('');
     setImages([]);
-    setSpeechError(null);
+    setVideo(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-    
-    if (isListening) {
-      stopListening();
-    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      handleSend('text'); // Default chat send
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setImages(prev => [...prev, reader.result as string]);
+      
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            setImages(prev => [...prev, reader.result as string]);
+          }
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type.startsWith('video/')) {
+        if (file.size > 20 * 1024 * 1024) {
+          alert("Video too large (Max 20MB for direct upload)");
+          return;
         }
-      };
-      reader.readAsDataURL(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            setVideo(reader.result);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const stopListening = () => {
-    setIsInitializing(false);
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.onend = null;
-        recognitionRef.current.abort();
-      } catch (e) {
-        console.warn("Recognition already inactive.");
-      }
-      recognitionRef.current = null;
-    }
-    setIsListening(false);
-    setInterimText('');
-  };
-
-  const toggleListening = async () => {
-    if (isListening || isInitializing) {
-      stopListening();
-      return;
-    }
-
-    setSpeechError(null);
-    setIsInitializing(true);
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSpeechError("Browser not supported");
-      setIsInitializing(false);
-      return;
-    }
-
+  // Transcription Recording
+  const startRecording = async () => {
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      if (recognitionRef.current) {
-        recognitionRef.current.onend = null;
-        recognitionRef.current.onerror = null;
-        try { recognitionRef.current.abort(); } catch(e) {}
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
 
-      await new Promise(resolve => setTimeout(resolve, 150));
-
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        setIsInitializing(false);
-        setSpeechError(null);
-      };
-      
-      recognition.onresult = (event: any) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-        
-        if (finalTranscript) {
-          setText(prev => {
-            const prefix = prev && !prev.endsWith(' ') ? ' ' : '';
-            return prev + prefix + finalTranscript.trim();
-          });
-        }
-        setInterimText(interimTranscript);
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
-        
-        if (event.error === 'no-speech') {
-          setIsInitializing(false);
-          return;
-        }
-        
-        setIsListening(false);
-        setIsInitializing(false);
-        setInterimText('');
-        
-        if (recognitionRef.current) {
-          try { recognitionRef.current.abort(); } catch(e) {}
-          recognitionRef.current = null;
-        }
-        
-        if (event.error === 'network') {
-          setSpeechError("Speech service unavailable");
-        } else if (event.error === 'not-allowed') {
-          setSpeechError("Mic access blocked");
-        } else {
-          setSpeechError(`Retry speech input`);
-        }
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        await handleTranscription(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
       };
 
-      recognition.onend = () => {
-        if (recognitionRef.current === recognition) {
-          setIsListening(false);
-          setIsInitializing(false);
-          setInterimText('');
-          recognitionRef.current = null;
-        }
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-
-    } catch (err: any) {
-      console.error("Failed to initialize speech:", err);
-      setIsInitializing(false);
-      if (err.name === 'NotAllowedError') {
-        setSpeechError("Mic access denied");
-      } else {
-        setSpeechError("System Error: Try again");
-      }
+      recorder.start();
+      setIsRecording(true);
+    } catch (e) {
+      console.error("Mic access failed", e);
     }
   };
 
-  const currentInputValue = isListening 
-    ? text + (interimText ? (text ? ' ' : '') + interimText : '') 
-    : text;
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
-  const placeholderText = isLoading 
-    ? "Processing..." 
-    : isInitializing
-      ? "Initializing..."
-      : speechError 
-        ? speechError 
-        : isListening 
-          ? "Listening..." 
-          : "Ask Neby or describe an image...";
+  const handleTranscription = async (blob: Blob) => {
+    setIsTranscribing(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        const text = await geminiService.transcribeAudio(base64);
+        setText(prev => (prev ? prev + ' ' : '') + text);
+      };
+      reader.readAsDataURL(blob);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const getPlaceholder = () => {
+    if (isRecording) return "Listening...";
+    if (isTranscribing) return "Transcribing...";
+    
+    if (selectedModel.id.includes('veo')) return "Describe a video to create...";
+    if (selectedModel.id.includes('image')) return "Describe an image to generate...";
+    if (selectedModel.supportsThinking) return `Ask a complex question (${selectedModel.name})...`;
+    
+    return `Ask Neby (${selectedModel.name})...`;
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
-      {/* Image Preview Area */}
-      {images.length > 0 && (
+      {/* Attachments Preview */}
+      {(images.length > 0 || video) && (
         <div className="flex gap-3 mb-3 overflow-x-auto pb-2 custom-scrollbar">
           {images.map((img, idx) => (
             <div key={idx} className="relative group flex-shrink-0">
-              <img 
-                src={img} 
-                alt="Preview" 
-                className="w-20 h-20 object-cover rounded-lg border border-white/20 shadow-xl"
-              />
-              <button
-                onClick={() => removeImage(idx)}
-                className="absolute -top-2 -right-2 bg-black/80 text-zinc-400 hover:text-red-400 rounded-full p-1 shadow-lg border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
+              <img src={img} alt="Preview" className="w-20 h-20 object-cover rounded-lg border border-white/20" />
+              <button onClick={() => setImages(prev => prev.filter((_, i) => i !== idx))} className="absolute -top-2 -right-2 bg-black/80 text-zinc-400 hover:text-red-400 rounded-full p-1 border border-white/10">
                 <X size={12} />
               </button>
             </div>
           ))}
+          {video && (
+             <div className="relative group flex-shrink-0 w-20 h-20 bg-black/50 rounded-lg border border-white/20 flex items-center justify-center">
+                <Video size={24} className="text-zinc-400" />
+                <button onClick={() => setVideo(null)} className="absolute -top-2 -right-2 bg-black/80 text-zinc-400 hover:text-red-400 rounded-full p-1 border border-white/10">
+                <X size={12} />
+              </button>
+             </div>
+          )}
         </div>
       )}
 
-      <div className={`relative flex flex-col bg-black/40 border rounded-2xl shadow-2xl backdrop-blur-xl transition-all duration-300 overflow-hidden ${
-        speechError 
-          ? 'border-red-500/40 ring-2 ring-red-500/5' 
-          : 'border-white/10 focus-within:ring-2 focus-within:ring-indigo-500/40 focus-within:border-indigo-500/40'
-      }`}>
+      {/* Input Bar */}
+      <div className={`relative bg-black/40 border rounded-2xl shadow-2xl backdrop-blur-xl transition-all duration-300 ${isRecording ? 'border-red-500/50 shadow-red-900/20' : 'border-white/10 focus-within:ring-2 focus-within:ring-indigo-500/40'}`}>
         
-        <div className="flex items-end px-1">
-          {/* Attachment Button */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="p-3 text-zinc-400 hover:text-indigo-300 transition-colors mb-[2px]"
-            title="Attach Image"
-            disabled={isLoading}
-          >
-            <ImageIcon size={20} />
-          </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            className="hidden" 
-            accept="image/*"
-            onChange={handleFileSelect}
-          />
+        {/* Container with items-end for bottom alignment of buttons */}
+        <div className="flex items-end gap-2 p-2">
+          
+          {/* Left Actions */}
+          <div className="flex items-center gap-1">
+            {/* Attach Button (Images & Video) */}
+            <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-zinc-400 hover:text-indigo-300 hover:bg-white/5 rounded-xl transition-all" title="Attach File">
+              <Paperclip size={20} />
+            </button>
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileSelect} />
 
-          {/* Microphone Button */}
-          <button
-            onClick={toggleListening}
-            className={`p-3 transition-all mb-[2px] ${
-              isListening || isInitializing
-                ? 'text-red-500 hover:text-red-400 scale-110' 
-                : speechError 
-                  ? 'text-red-400 hover:text-red-300' 
-                  : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-            title={isListening ? "Stop Recording" : "Start Voice Input"}
-            disabled={isLoading}
-          >
-            {isInitializing ? (
-              <RefreshCw size={20} className="animate-spin opacity-50" />
-            ) : isListening ? (
-              <div className="relative">
-                <MicOff size={20} />
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
-              </div>
-            ) : speechError ? (
-              <AlertCircle size={20} className="text-red-500" />
-            ) : (
-              <Mic size={20} />
-            )}
-          </button>
+            {/* Microphone (Transcription) */}
+            <button 
+              onClick={isRecording ? stopRecording : startRecording}
+              className={`p-2.5 rounded-xl transition-all ${isRecording ? 'text-red-500 bg-red-500/10 animate-pulse' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+              title="Transcribe Audio"
+            >
+              {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+            </button>
+          </div>
 
           {/* Text Input */}
           <div className="flex-1 relative">
             <textarea
               ref={textareaRef}
-              value={currentInputValue}
-              onChange={(e) => {
-                if (!isListening && !isInitializing) {
-                  setText(e.target.value);
-                  if (speechError) setSpeechError(null);
-                }
-              }}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={placeholderText}
-              className={`w-full bg-transparent text-zinc-100 placeholder-zinc-500 p-3 max-h-40 resize-none focus:outline-none custom-scrollbar transition-opacity ${
-                isListening || isInitializing ? 'cursor-default opacity-80' : ''
-              } ${speechError ? 'placeholder-red-400 font-medium' : ''}`}
+              placeholder={getPlaceholder()}
+              className="w-full bg-transparent text-zinc-100 placeholder-zinc-500 py-3 px-2 max-h-40 resize-none focus:outline-none custom-scrollbar leading-relaxed"
               rows={1}
-              disabled={isLoading}
-              readOnly={isListening || isInitializing}
+              disabled={isLoading || isTranscribing}
             />
           </div>
 
-          <div className="flex items-center gap-1 mb-[5px] mr-1.5">
-            {/* Imagine Button */}
+          {/* Right Actions */}
+          <div className="flex items-center gap-1">
+            {/* Live Button */}
             <button
-              onClick={() => handleSend(true)}
-              disabled={(!text.trim() && !interimText.trim()) || isLoading}
-              className={`p-2 rounded-xl transition-all ${
-                (!text.trim() && !interimText.trim()) || isLoading
-                  ? 'text-zinc-600 cursor-not-allowed'
-                  : 'bg-purple-600/20 text-purple-400 hover:bg-purple-600 hover:text-white shadow-lg shadow-purple-900/20'
-              }`}
-              title="Generate Image"
+               onClick={onLiveStart}
+               className="p-2.5 rounded-xl bg-gradient-to-tr from-blue-500/10 to-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-all border border-cyan-500/20"
+               title="Start Live Voice Session"
             >
-              <Wand2 size={18} />
+               <Sparkles size={18} />
             </button>
 
             {/* Send Button */}
             <button
-              onClick={() => handleSend(false)}
-              disabled={(!text.trim() && !interimText.trim() && images.length === 0) || isLoading}
-              className={`p-2 rounded-xl transition-all ${
-                (!text.trim() && !interimText.trim() && images.length === 0) || isLoading
+              onClick={() => handleSend('text')}
+              disabled={(!text.trim() && !images.length && !video) || isLoading}
+              className={`p-2.5 rounded-xl transition-all ${
+                (!text.trim() && !images.length && !video) || isLoading
                   ? 'bg-white/5 text-zinc-600 cursor-not-allowed'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-900/30'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg'
               }`}
-              title="Send Message"
             >
               {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </button>
           </div>
         </div>
-
-        {/* Listening Indicator Bar */}
-        {(isListening || isInitializing) && (
-          <div className="h-0.5 bg-zinc-800 w-full overflow-hidden">
-            <div className={`h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 w-full ${isInitializing ? 'opacity-30' : 'animate-[shimmer_1s_infinite]'} bg-[length:200%_100%]`}></div>
-          </div>
-        )}
       </div>
-      
-      <div className="text-center mt-2 text-[10px] uppercase tracking-[0.25em] text-zinc-700 font-bold select-none">
-        Powered by Gemini API • Cosmic Neural Mesh
-      </div>
-      
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: 100% 0; }
-          100% { background-position: -100% 0; }
-        }
-      `}</style>
     </div>
   );
 };
