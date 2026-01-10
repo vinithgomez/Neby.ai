@@ -12,6 +12,25 @@ export class GeminiService {
   }
 
   /**
+   * Generates a short title for the chat session.
+   */
+  async generateTitle(message: string): Promise<string> {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [{ text: `Generate a short, concise title (max 5 words) for a chat starting with this message: "${message}". Return ONLY the title text. Do not use quotes.` }]
+        }
+      });
+      return response.text?.trim() || message.slice(0, 30);
+    } catch (error) {
+      console.error("Title Generation Error:", error);
+      return message.slice(0, 30);
+    }
+  }
+
+  /**
    * Transcribes audio using Gemini 3 Flash.
    */
   async transcribeAudio(audioBase64: string): Promise<string> {

@@ -95,6 +95,15 @@ const mockService = {
     if (index >= 0) sessions[index] = session; else sessions.push(session);
     localStorage.setItem(key, JSON.stringify(sessions));
   },
+  async updateSessionTitle(userId: string, sessionId: string, newTitle: string) {
+    const key = `neby_sessions_${userId}`;
+    const sessions = JSON.parse(localStorage.getItem(key) || '[]');
+    const index = sessions.findIndex((s: any) => s.id === sessionId);
+    if (index >= 0) {
+        sessions[index].title = newTitle;
+        localStorage.setItem(key, JSON.stringify(sessions));
+    }
+  },
   async deleteSession(userId: string, sessionId: string) {
     const key = `neby_sessions_${userId}`;
     let sessions = JSON.parse(localStorage.getItem(key) || '[]');
@@ -168,6 +177,17 @@ export const firebaseService = {
     } catch (error) {
       console.error("Firestore Save Error:", error);
       throw error;
+    }
+  },
+
+  async updateSessionTitle(userId: string, sessionId: string, newTitle: string) {
+    if (!isConfigured || userId.startsWith('guest-')) return mockService.updateSessionTitle(userId, sessionId, newTitle);
+    
+    try {
+      const docRef = doc(db, 'users', userId, 'sessions', sessionId);
+      await setDoc(docRef, { title: newTitle }, { merge: true });
+    } catch (error) {
+      console.error("Firestore Title Update Error:", error);
     }
   },
 
