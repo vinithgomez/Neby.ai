@@ -46,6 +46,7 @@ export interface ChatConfig {
   systemInstruction: string;
   aspectRatio: string;
   imageSize: string;
+  useCosmicMode: boolean;
 }
 
 export interface User {
@@ -64,7 +65,8 @@ export const DEFAULT_CONFIG: ChatConfig = {
   useMaps: false,
   systemInstruction: "You are a helpful, knowledgeable, and creative AI assistant. Answer concisely and accurately.",
   aspectRatio: "1:1",
-  imageSize: "1K"
+  imageSize: "1K",
+  useCosmicMode: false
 };
 
 export interface ModelOption {

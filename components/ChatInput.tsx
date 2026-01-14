@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Loader2, Mic, MicOff, Sparkles, Video, Paperclip, StopCircle } from 'lucide-react';
+import { Send, X, Loader2, Mic, MicOff, Sparkles, Video, Paperclip, StopCircle, AlertTriangle } from 'lucide-react';
 import { geminiService } from '../services/geminiService';
 import { ModelOption } from '../types';
+import { validateInput, SECURITY_LIMITS } from '../utils/security';
 
 interface ChatInputProps {
   onSendMessage: (text: string, images: string[], type: 'text' | 'image' | 'video', videoData?: string) => void;
@@ -14,6 +15,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
   const [text, setText] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [video, setVideo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -28,14 +30,24 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
     }
-  }, [text]);
+    // Clear error if input changes
+    if (error) setError(null);
+  }, [text, images, video]);
 
   const handleSend = (type: 'text' | 'image' | 'video' = 'text') => {
+    // Client-side Validation Check
+    const validationError = validateInput(text, images);
+    if (validationError) {
+        setError(validationError);
+        return;
+    }
+
     if ((!text.trim() && images.length === 0 && !video) || isLoading) return;
     onSendMessage(text.trim(), images, type, video || undefined);
     setText('');
     setImages([]);
     setVideo(null);
+    setError(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
@@ -49,12 +61,19 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      
+      // Basic size check before read
+      if (file.size > SECURITY_LIMITS.MAX_IMAGE_SIZE_MB * 1024 * 1024 * 5) { // 5x limit for videos mostly, images strictly checked in validation
+         setError("File is too large.");
+         return;
+      }
+
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onloadend = () => { if (typeof reader.result === 'string') setImages(prev => [...prev, reader.result as string]); };
         reader.readAsDataURL(file);
       } else if (file.type.startsWith('video/')) {
-        if (file.size > 20 * 1024 * 1024) { alert("Video too large (Max 20MB)"); return; }
+        if (file.size > 20 * 1024 * 1024) { setError("Video too large (Max 20MB)"); return; }
         const reader = new FileReader();
         reader.onloadend = () => { if (typeof reader.result === 'string') setVideo(reader.result); };
         reader.readAsDataURL(file);
@@ -77,7 +96,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
       };
       recorder.start();
       setIsRecording(true);
-    } catch (e) { console.error("Mic access failed", e); }
+      setError(null);
+    } catch (e) { console.error("Mic access failed", e); setError("Microphone access denied."); }
   };
 
   const stopRecording = () => {
@@ -97,7 +117,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
         setText(prev => (prev ? prev + ' ' : '') + text);
       };
       reader.readAsDataURL(blob);
-    } catch (e) { console.error(e); } finally { setIsTranscribing(false); }
+    } catch (e) { console.error(e); setError("Transcription failed."); } finally { setIsTranscribing(false); }
   };
 
   const getPlaceholder = () => {
@@ -111,6 +131,15 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
   return (
     <div className="w-full max-w-4xl mx-auto p-4 z-20">
       
+      {/* Validation Error Toast */}
+      {error && (
+        <div className="mb-3 p-2.5 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-xs text-red-300 animate-in slide-in-from-bottom-2 fade-in">
+           <AlertTriangle size={14} />
+           <span>{error}</span>
+           <button onClick={() => setError(null)} className="ml-auto hover:text-white"><X size={12} /></button>
+        </div>
+      )}
+
       {/* Media Previews */}
       {(images.length > 0 || video) && (
         <div className="flex gap-3 mb-3 pl-2 overflow-x-auto pb-2 custom-scrollbar animate-message-enter">
@@ -130,7 +159,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
       )}
 
       {/* Floating Input Capsule */}
-      <div className={`relative bg-[#09090b]/60 backdrop-blur-2xl border transition-all duration-300 rounded-[24px] shadow-2xl ${isRecording ? 'border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : 'border-white/10 hover:border-white/20 focus-within:border-indigo-500/30 focus-within:ring-1 focus-within:ring-indigo-500/30'}`}>
+      <div className={`relative bg-[#09090b]/60 backdrop-blur-2xl border transition-all duration-300 rounded-[24px] shadow-2xl ${isRecording ? 'border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : error ? 'border-red-500/30' : 'border-white/10 hover:border-white/20 focus-within:border-indigo-500/30 focus-within:ring-1 focus-within:ring-indigo-500/30'}`}>
         
         <div className="flex items-end p-2 gap-2">
           
@@ -157,6 +186,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
             className="flex-1 bg-transparent text-zinc-100 placeholder-zinc-500 py-3.5 px-2 max-h-32 resize-none focus:outline-none custom-scrollbar text-[15px] leading-relaxed"
             rows={1}
             disabled={isLoading || isTranscribing}
+            maxLength={SECURITY_LIMITS.MAX_MESSAGE_LENGTH}
           />
 
           {/* Right Actions */}

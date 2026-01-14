@@ -4,6 +4,7 @@ import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import Sidebar from './components/Sidebar';
 import AuthScreen from './components/AuthScreen';
+import StarryBackground from './components/StarryBackground';
 import { Message, Role, ChatConfig, DEFAULT_CONFIG, ChatSession, User, AVAILABLE_MODELS } from './types';
 import { geminiService } from './services/geminiService';
 import { firebaseService } from './services/firebase';
@@ -319,7 +320,10 @@ const App: React.FC = () => {
   if (!authChecked) return null;
 
   return (
-    <div className="flex h-screen bg-transparent overflow-hidden selection:bg-indigo-500/30">
+    <div className="flex h-screen bg-transparent overflow-hidden selection:bg-indigo-500/30 relative">
+      {/* Background Layer */}
+      {config.useCosmicMode && <StarryBackground />}
+
       {showAuthModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in" onClick={() => setShowAuthModal(false)} />
@@ -343,7 +347,7 @@ const App: React.FC = () => {
         onTriggerLogin={() => setShowAuthModal(true)}
       />
       
-      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out relative ${slidebarOpen ? 'lg:ml-80' : 'lg:ml-0'}`}>
+      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out relative z-10 ${slidebarOpen ? 'lg:ml-80' : 'lg:ml-0'}`}>
         {isLiveMode && <LiveSessionOverlay onClose={() => setIsLiveMode(false)} />}
 
         {/* Mobile Header */}

@@ -1,14 +1,27 @@
 import { GoogleGenAI, Part, Modality } from "@google/genai";
 import { ChatConfig, Message, Role } from '../types';
+import { RateLimiter, validateInput, sanitizeInput, sanitizeError } from '../utils/security';
+
+// Initialize Rate Limiter: 15 requests burst, refill 1 every 3 seconds
+const globalRateLimiter = new RateLimiter(15, 0.33);
 
 export class GeminiService {
-  public ai: GoogleGenAI; // Made public for Live API access in App
+  public ai: GoogleGenAI;
 
   constructor() {
-    if (!process.env.API_KEY) {
-      console.error("API_KEY is missing from environment variables.");
+    // API Key must come strictly from env
+    const apiKey = process.env.API_KEY || '';
+    if (!apiKey) {
+      console.warn("Security Warning: API_KEY is missing from environment.");
     }
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    this.ai = new GoogleGenAI({ apiKey });
+  }
+
+  private checkRateLimit() {
+    if (!globalRateLimiter.checkLimit()) {
+      const waitTime = globalRateLimiter.getTimeToNextToken();
+      throw new Error(`Rate limit exceeded. Please wait ${waitTime}s.`);
+    }
   }
 
   /**
@@ -16,16 +29,20 @@ export class GeminiService {
    */
   async generateTitle(message: string): Promise<string> {
     try {
+      this.checkRateLimit();
+      const cleanMessage = sanitizeInput(message).slice(0, 1000); // Strict limit for title generation
+
+      // Re-instantiate to ensure fresh key usage if env changes
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: {
-          parts: [{ text: `Generate a short, concise title (max 5 words) for a chat starting with this message: "${message}". Return ONLY the title text. Do not use quotes.` }]
+          parts: [{ text: `Generate a short, concise title (max 5 words) for a chat starting with this message: "${cleanMessage}". Return ONLY the title text. Do not use quotes.` }]
         }
       });
-      return response.text?.trim() || message.slice(0, 30);
+      return response.text?.trim() || cleanMessage.slice(0, 30);
     } catch (error) {
-      console.error("Title Generation Error:", error);
+      console.error("Title Generation Error:", sanitizeError(error));
       return message.slice(0, 30);
     }
   }
@@ -35,7 +52,9 @@ export class GeminiService {
    */
   async transcribeAudio(audioBase64: string): Promise<string> {
     try {
-      // Re-instantiate to get latest key
+      this.checkRateLimit();
+      if (!audioBase64) throw new Error("Empty audio data.");
+
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -48,8 +67,8 @@ export class GeminiService {
       });
       return response.text || "";
     } catch (error) {
-      console.error("Transcription Error:", error);
-      throw error;
+      console.error("Transcription Error:", sanitizeError(error));
+      throw sanitizeError(error);
     }
   }
 
@@ -58,10 +77,14 @@ export class GeminiService {
    */
   async generateSpeech(text: string): Promise<string> {
     try {
+      this.checkRateLimit();
+      const cleanText = sanitizeInput(text);
+      if (!cleanText) throw new Error("Text is required for speech generation.");
+
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: `Read this message naturally: ${text}` }] }],
+        contents: [{ parts: [{ text: `Read this message naturally: ${cleanText}` }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -78,8 +101,8 @@ export class GeminiService {
       }
       return audioBase64;
     } catch (error) {
-      console.error("Gemini TTS Error:", error);
-      throw error;
+      console.error("Gemini TTS Error:", sanitizeError(error));
+      throw sanitizeError(error);
     }
   }
 
@@ -88,13 +111,17 @@ export class GeminiService {
    */
   async generateImage(prompt: string, config: ChatConfig, inputImages?: string[]): Promise<string[]> {
     try {
-      // Re-instantiate AI to ensure it picks up the latest API Key if changed via UI
+      this.checkRateLimit();
+      const cleanPrompt = sanitizeInput(prompt);
+      
+      const validationError = validateInput(cleanPrompt, inputImages);
+      if (validationError) throw new Error(validationError);
+
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
       const model = config.model; 
       
       const parts: Part[] = [];
       
-      // If input images are present, we are editing (or informing generation)
       if (inputImages && inputImages.length > 0) {
         for (const img of inputImages) {
           parts.push({
@@ -105,18 +132,12 @@ export class GeminiService {
           });
         }
       }
-      parts.push({ text: prompt });
+      parts.push({ text: cleanPrompt });
 
-      // Config depends on model
       let imageConfig: any = {
         aspectRatio: config.aspectRatio || "1:1"
       };
       
-      // Image Size only for Pro Image
-      if (model.includes('pro-image')) {
-        // "1K", "2K", "4K"
-      }
-
       const response = await ai.models.generateContent({
         model: model,
         contents: { parts },
@@ -140,8 +161,8 @@ export class GeminiService {
 
       return images;
     } catch (error) {
-      console.error("Gemini Image Generation Error:", error);
-      throw error;
+      console.error("Gemini Image Generation Error:", sanitizeError(error));
+      throw sanitizeError(error);
     }
   }
 
@@ -150,6 +171,11 @@ export class GeminiService {
    */
   async generateVideo(prompt: string, config: ChatConfig, inputImage?: string, onStatusUpdate?: (status: string) => void): Promise<string> {
     try {
+      this.checkRateLimit();
+      const cleanPrompt = sanitizeInput(prompt);
+      const validationError = validateInput(cleanPrompt, inputImage ? [inputImage] : []);
+      if (validationError) throw new Error(validationError);
+
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
       const requestConfig: any = {
@@ -158,13 +184,11 @@ export class GeminiService {
         aspectRatio: ['16:9', '9:16'].includes(config.aspectRatio || '') ? config.aspectRatio : '16:9'
       };
 
-      // Construct payload
       let operation;
       if (inputImage) {
-        // Image-to-Video
         operation = await ai.models.generateVideos({
           model: 'veo-3.1-fast-generate-preview',
-          prompt: prompt || "Animate this image",
+          prompt: cleanPrompt || "Animate this image",
           image: {
             imageBytes: inputImage.split(',')[1],
             mimeType: 'image/jpeg',
@@ -172,10 +196,9 @@ export class GeminiService {
           config: requestConfig
         });
       } else {
-        // Text-to-Video
         operation = await ai.models.generateVideos({
           model: 'veo-3.1-fast-generate-preview',
-          prompt: prompt,
+          prompt: cleanPrompt,
           config: requestConfig
         });
       }
@@ -191,10 +214,12 @@ export class GeminiService {
         throw new Error("No video URI returned from Gemini Veo");
       }
 
+      // Note: In a production app with a backend, you would proxy this download.
+      // Since this is client-only, we must append the key to fetch the content.
       return `${videoUri}&key=${process.env.API_KEY}`;
     } catch (error) {
-      console.error("Gemini Video Generation Error:", error);
-      throw error;
+      console.error("Gemini Video Generation Error:", sanitizeError(error));
+      throw sanitizeError(error);
     }
   }
 
@@ -203,84 +228,84 @@ export class GeminiService {
     newMessage: string, 
     images: string[], 
     config: ChatConfig,
-    videoData?: string // base64 video file if any
+    videoData?: string
   ): AsyncGenerator<string | { groundingChunks: any[] }, void, unknown> {
     
-    // Re-instantiate AI for streaming to catch latest key
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-
-    const chatHistory = history
-      .filter(msg => !msg.isLoading && msg.role !== Role.SYSTEM) 
-      .map(msg => ({
-        role: msg.role === Role.USER ? 'user' : 'model',
-        parts: msg.images && msg.images.length > 0 
-          ? [
-              ...msg.images.map(img => ({ inlineData: { mimeType: 'image/jpeg', data: img.split(',')[1] } })),
-              { text: msg.content }
-            ]
-          : [{ text: msg.content }]
-      }));
-
-    const currentParts: Part[] = [];
-    
-    // Images
-    if (images.length > 0) {
-      images.forEach(img => {
-        currentParts.push({
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: img.split(',')[1]
-          }
-        });
-      });
-    }
-
-    // Video Attachment (for Understanding)
-    if (videoData) {
-      // Assuming small video file converted to base64
-      // inlineData limit is ~20MB. 
-      // MimeType usually video/mp4
-      currentParts.push({
-        inlineData: {
-          mimeType: 'video/mp4',
-          data: videoData.split(',')[1]
-        }
-      });
-    }
-
-    currentParts.push({ text: newMessage });
-
-    const tools: any[] = [];
-    // Only Gemini 3 supports Google Search in this codebase context
-    if (config.useSearch && config.model.includes('gemini-3')) {
-      tools.push({ googleSearch: {} });
-    }
-    // Only Gemini 2.5 supports Google Maps (if we were using it)
-    if (config.useMaps && config.model.includes('gemini-2.5-flash')) {
-      tools.push({ googleMaps: {} });
-    }
-
-    // Thinking Config - Valid for Gemini 3 and 2.5
-    // Flash limit ~24k, Pro limit ~32k
-    const thinkingConfig = (config.useThinking && config.model.includes('gemini-3'))
-      ? { thinkingBudget: config.model.includes('pro') ? 32000 : 16000 } 
-      : undefined;
-
-    const isSingleTurnOnly = config.model.includes('tts') || config.model.includes('image');
-    
-    const contents = isSingleTurnOnly 
-      ? [{ role: 'user', parts: currentParts }]
-      : [
-          ...chatHistory,
-          { role: 'user', parts: currentParts }
-        ];
-
     try {
+        this.checkRateLimit();
+        const cleanMessage = sanitizeInput(newMessage);
+        const validationError = validateInput(cleanMessage, images);
+        
+        // Yield error immediately if validation fails
+        if (validationError) {
+             yield `⚠️ **Validation Error**: ${validationError}`;
+             return;
+        }
+
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+
+        const chatHistory = history
+          .filter(msg => !msg.isLoading && msg.role !== Role.SYSTEM) 
+          .map(msg => ({
+            role: msg.role === Role.USER ? 'user' : 'model',
+            parts: msg.images && msg.images.length > 0 
+              ? [
+                  ...msg.images.map(img => ({ inlineData: { mimeType: 'image/jpeg', data: img.split(',')[1] } })),
+                  { text: sanitizeInput(msg.content) }
+                ]
+              : [{ text: sanitizeInput(msg.content) }]
+          }));
+
+        const currentParts: Part[] = [];
+        
+        if (images.length > 0) {
+          images.forEach(img => {
+            currentParts.push({
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: img.split(',')[1]
+              }
+            });
+          });
+        }
+
+        if (videoData) {
+          currentParts.push({
+            inlineData: {
+              mimeType: 'video/mp4',
+              data: videoData.split(',')[1]
+            }
+          });
+        }
+
+        currentParts.push({ text: cleanMessage });
+
+        const tools: any[] = [];
+        if (config.useSearch && config.model.includes('gemini-3')) {
+          tools.push({ googleSearch: {} });
+        }
+        if (config.useMaps && config.model.includes('gemini-2.5-flash')) {
+          tools.push({ googleMaps: {} });
+        }
+
+        const thinkingConfig = (config.useThinking && config.model.includes('gemini-3'))
+          ? { thinkingBudget: config.model.includes('pro') ? 32000 : 16000 } 
+          : undefined;
+
+        const isSingleTurnOnly = config.model.includes('tts') || config.model.includes('image');
+        
+        const contents = isSingleTurnOnly 
+          ? [{ role: 'user', parts: currentParts }]
+          : [
+              ...chatHistory,
+              { role: 'user', parts: currentParts }
+            ];
+
       const result = await ai.models.generateContentStream({
         model: config.model,
         contents: contents,
         config: {
-          systemInstruction: config.systemInstruction,
+          systemInstruction: sanitizeInput(config.systemInstruction),
           temperature: config.useThinking ? undefined : config.temperature,
           tools: tools.length > 0 ? tools : undefined,
           thinkingConfig: thinkingConfig,
@@ -300,16 +325,21 @@ export class GeminiService {
         }
       }
     } catch (error: any) {
-      console.error("Gemini API Error Detail:", error);
+      console.error("Gemini API Error Detail:", sanitizeError(error));
       
       const errorMessage = error.message || error.error?.message || JSON.stringify(error);
       const statusCode = error.status || (error.response?.status) || error.code;
 
+      if (errorMessage.includes("Rate limit exceeded")) {
+         yield "🛑 **Rate Limit**: " + errorMessage;
+         return;
+      }
+
       if (errorMessage.includes("Requested entity was not found") || statusCode === 404) {
-        throw error;
+        throw sanitizeError(error);
       }
       if (statusCode === 429) {
-        yield "🚀 **Rate Limit Reached**: Please wait.";
+        yield "🚀 **Server Rate Limit Reached**: Please wait a moment.";
         return;
       }
       yield "☄️ **Error**: " + (errorMessage.slice(0, 100) + "...");

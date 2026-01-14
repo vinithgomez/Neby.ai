@@ -153,6 +153,20 @@ export default function Sidebar({
             <div className="space-y-3">
                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-2">Active Tools</label>
                
+               {/* Cosmic Mode Toggle */}
+               <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 transition-colors hover:border-white/10">
+                  <div className="flex items-center gap-3">
+                     <div className={`p-2 rounded-lg ${config.useCosmicMode ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/5 text-zinc-600'}`}><Sparkles size={16} /></div>
+                     <div className="flex flex-col">
+                        <span className="text-sm font-medium text-zinc-200">Cosmic Mode</span>
+                        <span className="text-[10px] text-zinc-500">Immersive starry sky</span>
+                     </div>
+                  </div>
+                  <button onClick={() => setConfig(prev => ({ ...prev, useCosmicMode: !prev.useCosmicMode }))} className={`w-10 h-5 rounded-full transition-all relative ${config.useCosmicMode ? 'bg-indigo-600' : 'bg-zinc-800'}`}>
+                     <div className={`absolute top-1 left-1 bg-white w-3 h-3 rounded-full transition-transform shadow-sm ${config.useCosmicMode ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+               </div>
+
                {selectedModel?.supportsThinking && (
                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 transition-colors hover:border-white/10">
                     <div className="flex items-center gap-3">
