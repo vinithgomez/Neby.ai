@@ -1,6 +1,6 @@
 # Neby ✨
 
-![Side Bar](Output/Side Bar.png)
+![Side Bar]([Output/Side Bar.png](https://github.com/vinithgomez/Neby.ai/blob/main/Output/UI.png))
 
 **Neby** is a cutting-edge, nebula-themed AI interface built with **React 19** and the **Google GenAI SDK**. It harnesses the power of the latest **Gemini 3** and **Veo** models to provide a unified workspace for text, code, image generation, video creation, and real-time voice conversations.
 
