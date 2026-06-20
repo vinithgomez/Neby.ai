@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, X, Loader2, Mic, MicOff, Sparkles, Video, Paperclip, StopCircle, AlertTriangle } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { geminiService } from '../services/geminiService';
 import { ModelOption } from '../types';
 import { validateInput, SECURITY_LIMITS } from '../utils/security';
@@ -159,20 +160,25 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
       )}
 
       {/* Floating Input Capsule */}
-      <div className={`relative bg-[#09090b]/60 backdrop-blur-2xl border transition-all duration-300 rounded-[24px] shadow-2xl ${isRecording ? 'border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : error ? 'border-red-500/30' : 'border-white/10 hover:border-white/20 focus-within:border-indigo-500/30 focus-within:ring-1 focus-within:ring-indigo-500/30'}`}>
+      <motion.div 
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className={`relative bg-[#0f0f0f] border transition-all duration-300 rounded-[28px] shadow-[0_4px_30px_rgba(0,0,0,0.5)] ${isRecording ? 'border-red-500/30' : error ? 'border-red-500/30' : 'border-white/10 hover:border-white/20 focus-within:border-white/30 focus-within:ring-4 focus-within:ring-white/5'}`}
+      >
         
-        <div className="flex items-end p-2 gap-2">
+        <div className="flex items-end px-3 py-2 gap-2">
           
           {/* Left Actions */}
-          <div className="flex items-center gap-1 pb-1 pl-1">
-             <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Attach Media">
-               <Paperclip size={20} />
+          <div className="flex items-center gap-1 pb-1">
+             <button onClick={() => fileInputRef.current?.click()} className="p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title="Attach Media">
+               <Paperclip size={18} />
              </button>
              <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" onChange={handleFileSelect} />
              
              {/* Live Mode Toggle (Only if available) */}
-             <button onClick={onLiveStart} className="hidden md:flex p-2.5 text-zinc-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-full transition-colors" title="Start Live Session">
-               <Sparkles size={20} />
+             <button onClick={onLiveStart} className="hidden md:flex p-2 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 rounded-full transition-colors" title="Start Live Session">
+               <Sparkles size={18} />
              </button>
           </div>
 
@@ -183,38 +189,38 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onLiveS
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={getPlaceholder()}
-            className="flex-1 bg-transparent text-zinc-100 placeholder-zinc-500 py-3.5 px-2 max-h-32 resize-none focus:outline-none custom-scrollbar text-[15px] leading-relaxed"
+            className="flex-1 bg-transparent text-zinc-100 placeholder-zinc-500 py-2.5 px-2 max-h-32 resize-none focus:outline-none custom-scrollbar text-[15px] font-['Inter'] leading-relaxed"
             rows={1}
             disabled={isLoading || isTranscribing}
             maxLength={SECURITY_LIMITS.MAX_MESSAGE_LENGTH}
           />
 
           {/* Right Actions */}
-          <div className="flex items-center gap-2 pb-1 pr-1">
+          <div className="flex items-center gap-1.5 pb-1">
              {/* Mic Button */}
              <button 
                onClick={isRecording ? stopRecording : startRecording}
-               className={`p-2.5 rounded-full transition-all duration-300 ${isRecording ? 'bg-red-500/20 text-red-500 scale-110' : 'text-zinc-400 hover:text-white hover:bg-white/10'}`}
+               className={`p-2 rounded-full transition-all duration-300 ${isRecording ? 'bg-red-500/20 text-red-500' : 'text-zinc-400 hover:text-white hover:bg-white/10'}`}
                title="Voice Input"
              >
-               {isRecording ? <StopCircle size={22} className="animate-pulse" /> : <Mic size={20} />}
+               {isRecording ? <StopCircle size={18} className="animate-pulse" /> : <Mic size={18} />}
              </button>
 
              {/* Send Button */}
              <button
                onClick={() => handleSend('text')}
                disabled={(!text.trim() && !images.length && !video) || isLoading}
-               className={`p-3 rounded-2xl transition-all duration-300 shadow-lg ${
+               className={`w-9 h-9 flex items-center justify-center rounded-full transition-all duration-300 ${
                  (!text.trim() && !images.length && !video) || isLoading
-                   ? 'bg-white/5 text-zinc-600 cursor-not-allowed'
-                   : 'bg-indigo-600 text-white hover:bg-indigo-500 hover:scale-105 hover:shadow-indigo-500/30'
+                   ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                   : 'bg-white text-black hover:scale-105'
                }`}
              >
-               {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+               {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} className="ml-0.5" />}
              </button>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

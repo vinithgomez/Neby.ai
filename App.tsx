@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Sparkles, X, Mic } from 'lucide-react';
+import { Menu, Sparkles, X, Mic, Download } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import Sidebar from './components/Sidebar';
@@ -12,11 +13,21 @@ import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 
 const WelcomeLogo = () => {
   return (
-    <div className="relative w-full h-full flex items-center justify-center">
-       <div className="absolute inset-0 bg-indigo-500/20 blur-3xl rounded-full" />
-       <div className="w-24 h-24 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-3xl flex items-center justify-center shadow-2xl relative z-10 border border-white/10 rotate-3 transition-transform hover:rotate-6 hover:scale-105 duration-500">
-         <Sparkles size={48} className="text-white fill-white/20 animate-pulse" style={{ animationDuration: '4s' }} />
-       </div>
+    <div className="relative flex flex-col items-center justify-center space-y-6">
+       <motion.div 
+         initial={{ opacity: 0, scale: 0.8 }}
+         animate={{ opacity: 1, scale: 1 }}
+         transition={{ duration: 2, ease: "easeOut" }}
+         className="absolute w-64 h-64 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" 
+       />
+       <motion.h1 
+         initial={{ opacity: 0, y: 20 }}
+         animate={{ opacity: 1, y: 0 }}
+         transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+         className="text-5xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-white via-zinc-200 to-zinc-500 font-['Space_Grotesk'] tracking-tighter drop-shadow-sm"
+       >
+         Neby.
+       </motion.h1>
     </div>
   );
 };
@@ -317,6 +328,31 @@ const App: React.FC = () => {
     } catch (e) { console.error(e); } finally { setIsLoading(false); }
   };
 
+  const handleExportChat = () => {
+    if (!currentSession) return;
+    
+    let markdown = `# ${currentSession.title}\n\n`;
+    currentSession.messages.forEach(m => {
+      const role = m.role === Role.USER ? 'You' : 'Neby';
+      markdown += `### ${role} - ${new Date(m.timestamp).toLocaleString()}\n\n`;
+      markdown += `${m.content}\n\n`;
+      if (m.images && m.images.length > 0) {
+        markdown += `*[Attached ${m.images.length} image(s)]*\n\n`;
+      }
+      markdown += `---\n\n`;
+    });
+
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentSession.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_export.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   if (!authChecked) return null;
 
   return (
@@ -324,12 +360,27 @@ const App: React.FC = () => {
       {/* Background Layer */}
       {config.useCosmicMode && <StarryBackground />}
 
-      {showAuthModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in" onClick={() => setShowAuthModal(false)} />
-          <div className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200"><AuthScreen onLogin={handleLogin} onGuest={() => setShowAuthModal(false)} onClose={() => setShowAuthModal(false)} /></div>
-        </div>
-      )}
+      <AnimatePresence>
+        {showAuthModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowAuthModal(false)} />
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="relative z-10 w-full max-w-md"
+            >
+              <AuthScreen onLogin={handleLogin} onGuest={() => setShowAuthModal(false)} onClose={() => setShowAuthModal(false)} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       <Sidebar 
         isOpen={slidebarOpen} 
@@ -347,7 +398,7 @@ const App: React.FC = () => {
         onTriggerLogin={() => setShowAuthModal(true)}
       />
       
-      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out relative z-10 ${slidebarOpen ? 'lg:ml-80' : 'lg:ml-0'}`}>
+      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out relative z-10 ${slidebarOpen ? 'lg:ml-[280px]' : 'lg:ml-0'}`}>
         {isLiveMode && <LiveSessionOverlay onClose={() => setIsLiveMode(false)} />}
 
         {/* Mobile Header */}
@@ -363,33 +414,50 @@ const App: React.FC = () => {
              </button>
         )}
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+        {/* Top Right Actions */}
+        {messages.length > 0 && (
+          <div className="absolute top-4 right-4 lg:top-6 lg:right-6 z-30 flex items-center gap-2">
+             <button onClick={handleExportChat} className="p-2.5 bg-[#09090b]/50 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 backdrop-blur-md transition-all shadow-lg" title="Export Chat as Markdown">
+                <Download size={18} />
+             </button>
+          </div>
+        )}
+
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar scroll-smooth">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in zoom-in-95 duration-500">
-              <div className="w-40 h-40">
+             <motion.div 
+               initial="hidden" animate="visible"
+               variants={{
+                 hidden: { opacity: 0 },
+                 visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } }
+               }}
+               className="h-full flex flex-col items-center justify-center pt-10 pb-20 px-4"
+             >
                 <WelcomeLogo />
-              </div>
-              <div className="space-y-3 max-w-md">
-                <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-indigo-200 via-white to-purple-200 drop-shadow-sm tracking-tight">
-                  {user && !user.isAnonymous ? `Hello, ${user.name.split(' ')[0]}` : 'Welcome to Neby'}
-                </h1>
-                <p className="text-zinc-400 leading-relaxed text-lg">
-                  Your creative companion for thinking, coding, and visualizing ideas.
-                </p>
-              </div>
-              
-              {/* Feature Pills */}
-              <div className="flex flex-wrap justify-center gap-3">
-                 <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/5 text-xs font-medium text-zinc-400 flex items-center gap-2">
-                    <Sparkles size={12} className="text-purple-400" />
-                    Gemini 3 Pro
-                 </div>
-                 <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/5 text-xs font-medium text-zinc-400 flex items-center gap-2">
-                    <Mic size={12} className="text-cyan-400" />
-                    Live Audio
-                 </div>
-              </div>
-            </div>
+                <motion.div 
+                  variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } }}
+                  className="mt-8 text-center space-y-2"
+                >
+                   <p className="text-xl md:text-2xl font-light text-zinc-300">
+                      {user && !user.isAnonymous ? `Good evening, ${user.name.split(' ')[0]}.` : 'Hello there.'}
+                   </p>
+                   <p className="text-zinc-500 text-sm md:text-base">What would you like to explore today?</p>
+                </motion.div>
+                
+                <motion.div 
+                  variants={{ hidden: { opacity: 0, scale: 0.95 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" } } }}
+                  className="mt-12 flex flex-wrap justify-center gap-3"
+                >
+                   <div className="px-4 py-2 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 transition-all cursor-default text-xs font-medium text-zinc-400 flex items-center gap-2">
+                      <Sparkles size={14} className="text-zinc-300" />
+                      Gemini 3 Pro
+                   </div>
+                   <div className="px-4 py-2 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 transition-all cursor-default text-xs font-medium text-zinc-400 flex items-center gap-2">
+                      <Mic size={14} className="text-zinc-300" />
+                      Live Audio
+                   </div>
+                </motion.div>
+             </motion.div>
           ) : (
             <div className="max-w-4xl mx-auto pt-4 md:pt-10">
               {messages.map(m => (
@@ -406,7 +474,7 @@ const App: React.FC = () => {
           )}
         </main>
 
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#050508] via-[#050508]/90 to-transparent pt-20 pb-6 px-4 pointer-events-none z-20">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#030303] via-[#030303]/90 to-transparent pt-[120px] pb-6 px-4 pointer-events-none z-20">
            <div className="pointer-events-auto">
               <ChatInput 
                 onSendMessage={handleSendMessage} 

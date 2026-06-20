@@ -98,7 +98,7 @@ export default function AuthScreen({ onLogin, onGuest, onClose }: AuthScreenProp
   };
 
   return (
-    <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl overflow-hidden relative w-full">
+    <div className="bg-[#030303] border border-[#1a1a1a] rounded-3xl p-8 shadow-2xl relative w-full h-full md:h-auto overflow-y-auto">
       {onClose && (
         <button onClick={onClose} className="absolute top-4 right-4 text-zinc-500 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
           <X size={20} />
@@ -106,13 +106,13 @@ export default function AuthScreen({ onLogin, onGuest, onClose }: AuthScreenProp
       )}
 
       <div className="flex flex-col items-center mb-8">
-        <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 rounded-2xl flex items-center justify-center shadow-lg border border-white/20 mb-4 transform rotate-3">
-          <Sparkles size={32} className="text-white fill-white/10" />
+        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg border border-[#222] mb-4">
+          <span className="text-black font-bold font-['Space_Grotesk'] text-2xl tracking-tighter">N.</span>
         </div>
-        <h1 className="text-2xl font-bold text-white mb-1">
+        <h1 className="text-2xl font-bold font-['Space_Grotesk'] tracking-tight text-white mb-1">
           {isLogin ? 'Welcome Back' : 'Join Neby'}
         </h1>
-        <p className="text-zinc-400 text-sm">Sign in to save your history</p>
+        <p className="text-zinc-500 text-sm">Sign in to save your history</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -126,7 +126,7 @@ export default function AuthScreen({ onLogin, onGuest, onClose }: AuthScreenProp
                 value={formData.name}
                 onChange={e => setFormData({...formData, name: e.target.value})}
                 placeholder="Enter your name"
-                className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+                className="w-full bg-[#0a0a0a] border border-[#222] rounded-xl py-3 pl-10 pr-4 text-sm text-zinc-100 placeholder-zinc-700 focus:outline-none focus:border-[#444] transition-all"
               />
             </div>
           </div>
@@ -141,7 +141,7 @@ export default function AuthScreen({ onLogin, onGuest, onClose }: AuthScreenProp
               value={formData.email}
               onChange={e => setFormData({...formData, email: e.target.value})}
               placeholder="name@example.com"
-              className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+              className="w-full bg-[#0a0a0a] border border-[#222] rounded-xl py-3 pl-10 pr-4 text-sm text-zinc-100 placeholder-zinc-700 focus:outline-none focus:border-[#444] transition-all"
             />
           </div>
         </div>
@@ -155,7 +155,7 @@ export default function AuthScreen({ onLogin, onGuest, onClose }: AuthScreenProp
               value={formData.password}
               onChange={e => setFormData({...formData, password: e.target.value})}
               placeholder="••••••••"
-              className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-10 pr-12 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+              className="w-full bg-[#0a0a0a] border border-[#222] rounded-xl py-3 pl-10 pr-12 text-sm text-zinc-100 placeholder-zinc-700 focus:outline-none focus:border-[#444] transition-all"
             />
             <button
               type="button"
@@ -177,7 +177,7 @@ export default function AuthScreen({ onLogin, onGuest, onClose }: AuthScreenProp
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 group mt-2"
+          className="w-full bg-white text-black hover:bg-zinc-200 font-semibold py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 group mt-2"
         >
           {loading ? (
             <Loader2 size={18} className="animate-spin" />
@@ -191,8 +191,8 @@ export default function AuthScreen({ onLogin, onGuest, onClose }: AuthScreenProp
       </form>
 
       <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-        <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0f1016] px-2 text-zinc-500">Or continue with</span></div>
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#222]"></div></div>
+        <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#030303] px-2 text-zinc-600 font-['Space_Grotesk'] tracking-wider">Or</span></div>
       </div>
 
       <div className="space-y-3">
@@ -200,18 +200,18 @@ export default function AuthScreen({ onLogin, onGuest, onClose }: AuthScreenProp
           type="button"
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full bg-white text-zinc-900 font-medium py-3 rounded-xl hover:bg-zinc-100 transition-colors flex items-center justify-center gap-2 shadow-lg"
+          className="w-full bg-[#0a0a0a] border border-[#222] text-zinc-300 font-medium py-3 rounded-xl hover:bg-[#111] transition-colors flex items-center justify-center gap-2"
         >
           <GoogleLogo />
-          <span>Google Account</span>
+          <span>Continue with Google</span>
         </button>
       </div>
 
-      <div className="mt-8 text-center text-sm text-zinc-400">
+      <div className="mt-8 text-center text-sm text-zinc-500">
         {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
         <button 
           onClick={() => { setIsLogin(!isLogin); setError(null); }}
-          className="text-indigo-400 hover:text-indigo-300 font-medium hover:underline transition-all"
+          className="text-white hover:text-zinc-300 font-medium underline-offset-4 hover:underline transition-all"
         >
           {isLogin ? "Sign up" : "Log in"}
         </button>

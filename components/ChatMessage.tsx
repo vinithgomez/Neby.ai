@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { motion } from 'motion/react';
 import { Message, Role } from '../types';
 import { User, Globe, Copy, Check, Sparkles, Volume2, Square, Loader2, Pencil, Download, Palette } from 'lucide-react';
 import { geminiService } from '../services/geminiService';
@@ -25,6 +26,42 @@ const ThinkingIndicator = ({ isPainting }: { isPainting?: boolean }) => (
     </div>
   </div>
 );
+
+const CodeBlock = ({ node, inline, className, children, ...props }: any) => {
+  const match = /language-(\w+)/.exec(className || '');
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (!inline && match) {
+    return (
+      <div className="relative group/code mt-2 mb-4 rounded-lg overflow-hidden border border-white/10">
+        <div className="flex items-center justify-between px-4 py-1.5 bg-black/60 border-b border-white/5">
+          <span className="text-xs text-zinc-400 font-mono">{match[1]}</span>
+          <button onClick={handleCopy} className="text-zinc-400 hover:text-white transition-colors flex items-center gap-1">
+            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            <span className="text-[10px]">{copied ? 'Copied!' : 'Copy'}</span>
+          </button>
+        </div>
+        <pre className="!mt-0 !mb-0 !rounded-none !border-0 bg-black/30">
+          <code className={className} {...props}>
+            {children}
+          </code>
+        </pre>
+      </div>
+    );
+  }
+
+  return (
+    <code className={className} {...props}>
+      {children}
+    </code>
+  );
+};
 
 // PCM Decoding Helpers
 function decodeBase64(base64: string) {
@@ -131,34 +168,42 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onUpdateMessage, onE
   };
 
   return (
-    <div className={`flex w-full mb-6 ${isUser ? 'justify-end' : 'justify-start'} group animate-message-enter`}>
-      <div className={`flex max-w-[95%] md:max-w-[85%] lg:max-w-[75%] gap-4 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className={`flex w-full mb-8 justify-center group`}
+    >
+      <div className={`flex w-full max-w-3xl gap-4 md:gap-6 px-4`}>
         
-        {/* Avatar */}
-        <div className="flex-shrink-0 flex flex-col items-center pt-1">
-          <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-lg border ${isUser ? 'bg-indigo-600 border-indigo-400/30' : 'bg-[#18181b] border-white/10'}`}>
-            {isUser ? <User size={16} className="text-white" /> : <Sparkles size={16} className="text-indigo-400" />}
+        {/* Avatar Area (Hidden for user, visible for AI) */}
+        {!isUser && (
+          <div className="flex-shrink-0 flex flex-col items-center pt-1 mt-1">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center border bg-black border-white/10 shadow-[0_0_15px_rgba(255,255,255,0.05)]`}>
+              <Sparkles size={14} className="text-zinc-300" />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Content Bubble Container */}
-        <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} min-w-0 flex-1`}>
+        <div className={`flex flex-col min-w-0 flex-1 ${isUser ? 'items-end' : 'items-start'}`}>
             
-            {/* Name & Time */}
-            <div className={`flex items-center gap-2 mb-1.5 px-1 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-                <span className="text-xs font-bold text-zinc-400">{isUser ? 'You' : 'Neby'}</span>
-                <span className="text-[10px] text-zinc-600">{new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
+            {/* Name Container (Optional, keeping subtle) */}
+            {!isUser && (
+              <div className="flex items-center gap-2 mb-2 px-1">
+                  <span className="text-xs font-semibold text-zinc-400 font-['Space_Grotesk'] tracking-wide">NEBY</span>
+              </div>
+            )}
 
-            {/* Bubble Anchor (For Actions Positioning) */}
-            <div className="relative max-w-full group/bubble">
+            {/* Bubble Anchor */}
+            <div className={`relative max-w-full group/bubble ${isUser ? 'w-auto' : 'w-full'}`}>
                 
                 {/* THE ACTUAL BUBBLE */}
-                <div className={`px-6 py-5 shadow-sm transition-all duration-300 overflow-hidden ${
+                <div className={`transition-all duration-300 ${
                     isUser 
-                    ? 'bg-[#27272a] text-zinc-100 rounded-3xl rounded-tr-lg border border-white/5' 
-                    : 'bg-black/20 backdrop-blur-md text-zinc-200 rounded-3xl rounded-tl-lg border border-white/5'
-                } ${isEditing ? 'ring-1 ring-indigo-500/50' : ''}`}>
+                    ? 'bg-[#1c1c1c] text-[#ececec] rounded-[24px] px-5 py-3 border border-white/5 shadow-sm max-w-[90%]' 
+                    : 'bg-transparent text-zinc-300 py-1'
+                } ${isEditing && isUser ? 'ring-1 ring-white/20' : ''}`}>
                     
                     {/* Images */}
                     {message.images && message.images.length > 0 && (
@@ -184,7 +229,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onUpdateMessage, onE
                     ) : (
                         message.isLoading || message.isPainting ? <ThinkingIndicator isPainting={message.isPainting} /> : (
                             <div className="markdown-content text-[15px] leading-7 font-light tracking-wide text-zinc-200 selection:bg-indigo-500/30 break-words">
-                                <ReactMarkdown>{message.content}</ReactMarkdown>
+                                <ReactMarkdown components={{ code: CodeBlock }}>{message.content}</ReactMarkdown>
                             </div>
                         )
                     )}
@@ -192,14 +237,22 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onUpdateMessage, onE
 
                 {/* Message Actions (Outside overflow-hidden) */}
                 {!message.isLoading && !message.isPainting && !isEditing && (
-                    <div className={`absolute -bottom-3 ${isUser ? 'left-4' : 'right-4'} flex items-center gap-0.5 bg-[#18181b] border border-white/10 rounded-full px-2 py-0.5 shadow-lg opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 scale-95 group-hover/bubble:scale-100 z-10`}>
-                        {isUser && <button onClick={() => setIsEditing(true)} className="p-1.5 text-zinc-400 hover:text-white transition-colors"><Pencil size={12} /></button>}
-                        {!isUser && message.content && (
-                            <button onClick={handleSpeak} className={`p-1.5 transition-colors ${isSpeaking ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'}`}>
-                                {isSpeechLoading ? <Loader2 size={12} className="animate-spin" /> : isSpeaking ? <Square size={12} fill="currentColor" /> : <Volume2 size={12} />}
-                            </button>
+                    <div className={`absolute ${isUser ? '-bottom-8 right-2' : '-bottom-6 left-0'} flex items-center gap-1 opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 z-10`}>
+                        {isUser && (
+                           <>
+                              <button onClick={() => setIsEditing(true)} className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors bg-[#0a0a0a] rounded-md border border-white/5 shadow-sm"><Pencil size={12} /></button>
+                           </>
                         )}
-                        <button onClick={handleCopy} className="p-1.5 text-zinc-400 hover:text-white transition-colors">{copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}</button>
+                        {!isUser && message.content && (
+                           <>
+                              <button onClick={handleSpeak} className={`p-1.5 transition-colors rounded-md bg-transparent hover:bg-white/5 ${isSpeaking ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                                  {isSpeechLoading ? <Loader2 size={14} className="animate-spin" /> : isSpeaking ? <Square size={14} fill="currentColor" /> : <Volume2 size={14} />}
+                              </button>
+                              <button onClick={handleCopy} className="p-1.5 text-zinc-500 hover:text-zinc-300 transition-colors rounded-md bg-transparent hover:bg-white/5">
+                                  {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                              </button>
+                           </>
+                        )}
                     </div>
                 )}
 
@@ -220,7 +273,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onUpdateMessage, onE
             )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
